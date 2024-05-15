@@ -49,18 +49,18 @@
 
     //9.  测试 昇腾 卷积算法加速
     // TestAscendConvLayer();
-    ```
+```
 
-    2. 修改 CMakeLists.txt文件中 openBlas 库的路径
+2. 修改 CMakeLists.txt文件中 openBlas 库的路径
 
-    3. 编译运行
+3. 编译运行
 
-    ```bash
+```bash
     mkdir build && cd build
     cmake ..
     make
     ./alogrithm
-    ```
+```
 
 
 
