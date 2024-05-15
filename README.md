@@ -1,38 +1,66 @@
-# Convolution Flavors
+# ConvAccelerate 信息
 
-This project contains different types of implementations of convolution layer used in Convolutional Neural Networks.
+本项目包含一些基本的卷积加速算法，感兴趣的可以尝试下载运行。
 
-# Notations
+本项目可能存在错误和不足，欢迎指教。
 
-N : Batch size
+本项目借鉴和使用了项目[convolution-flavors](https://github.com/gplhegde/convolution-flavors)的结构，增加了新的算法。感兴趣的也可以去看看这个项目。
 
-C : No of input channels
 
-H : Input height
 
-W : Input width
+# 环境
 
-M : No of output channels
+> openBlas
+> m
+> g++
+> gcc
 
-K : Kernel size
+安装Openblas库可以参考博客 [Openblas安装方法](https://forcheetah.github.io/2024/05/13/openBlas/)
 
-# Description
-The current implementations include
 
-1. **Image to Column** - Standard convolution used in frameworks such as Caffe. This method requires an extra buffer space of HxWxKxKxC to store the im2col matrix. The matrix multiplication is done using SGEMM.
+# 运行
 
-2. **Image to Row** - This is same as image to column method except the strided input patches are unrolled and stored in a row of the matrix. The extra buffer space requirement is same as im2col method.
+1. main.c中关掉想要测试的函数注释
 
-3. **Kernel to Row** - This method is based on the trick that a KxK convolution can be computed using K.K 1x1 convolutions and then shifting and adding the resulting partial outputs. The extra buffer space required for this is MxHxW.
+```c
+    //1.  测试 weight_col matmul input_tensor_col
+    TestIm2FlavorConvLayer();
 
-4. **Kernel to Column** - This is the counterpart of kn2row method.
+    //2. 测试 input_tensor_col matmul weight_col
+    // TestIm2ColConvIMW();
 
-Methods 3 and 4 are introduced in [this](https://arxiv.org/pdf/1709.03395.pdf) research paper. Refer to it for more info.
+    //3.  测试 weight_cube matmul input_cube  逐个取数
+    // TestIm2CubeConvLayer();
 
-5. **Vectored Convolution** - This implementation uses direct convolution without using any creation of patch matrix. It vectorizes the computation in C, M, W and K dimensions which can be changed to finetune the performance for different platforms.
+    //4.  测试 image -> col_2D -> cube with multi-mem-copy  批量取数
+    // TestIm2MencopyConvLayer();
 
-6. **1D Winograd Convolution** - This implementation is based on 1D Winograd convolution algorithm. This approach saves some costly multiplications at the expense of few more cheaper addtions.
+    //5.  测试 image -> col_2D -> cube with multi-mem-copy  批量取数  NHWC 版本
+    // TestIm2BatchcopyConvLayer();
 
-Methods 5 and 6 are vectorized as per [this](https://arxiv.org/abs/1701.03534) paper from Intel which is on Deep learning accelerator using OpenCL on Arria10 FPGA.
+    //6.  测试 winograd alogrithm  F(2*2, 3*3)  
+    // TestWinogradF23ConvLayer();
 
-Refer to [Fast Algorithms for Convolutional Neural Networks](https://arxiv.org/abs/1509.09308) for details on Winograd appraoch to realize convolution layers.
+    //7.  测试 winograd alogrithm  F(6*6, 3*3)  
+    // TestWinogradF63ConvLayer();
+
+    //8.  测试 NHWC 排布 CPU卷积算法的正确性
+    // TestCPU_NHWC_conv();
+
+    //9.  测试 昇腾 卷积算法加速
+    // TestAscendConvLayer();
+    ```
+
+    2. 修改 CMakeLists.txt文件中 openBlas 库的路径
+
+    3. 编译运行
+
+    ```bash
+    mkdir build && cd build
+    cmake ..
+    make
+    ./alogrithm
+    ```
+
+
+
