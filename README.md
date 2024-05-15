@@ -15,7 +15,7 @@
 > g++
 > gcc
 
-安装Openblas库可以参考博客 [Openblas安装方法](https://forcheetah.github.io/2024/05/13/openBlas/)
+安装Openblas库可以参考博客 [Openblas安装方法](https://forcheetah.github.io/2024/05/15/openBlas/)
 
 
 # 运行
