@@ -56,4 +56,14 @@ void WinogradF63Layer(const float* in_data, const TensorDim in_dim, const float*
 void Ascend(const float*in_data, const TensorDim in_dim, const float* filters, const TensorDim weight_dim,
         float* bias, float* output, const TensorDim out_dim, int group, int pad, int stride,  int CUBE_row, int CUBE_col,
         Ascend5Dim in_5D_dim, AscendTransform5Dim in_tran5D_dim, Ascend5Dim we_5D_dim, AscendTransform5Dim we_tran5D_dim);
+
+void Ascend_B(const float* in_data, const TensorDim in_dim, const float* filters, const TensorDim weight_dim,
+        float* bias, float* output, const TensorDim out_dim, int group, int pad, int stride, int CUBE_row, int CUBE_col,
+        Ascend5Dim in_5D_dim, Cube5DDim in_tran5D_dim, Ascend5Dim we_5D_dim, WeightCube5D we_tran5D_dim);
+
+void Ascend_A(const float* in_data, const TensorDim in_dim, const float* filters, const TensorDim weight_dim,
+        float* bias, float* output, const TensorDim out_dim, int group, int pad, int stride, int CUBE_row, int CUBE_col,
+        Ascend5Dim in_5D_dim, AscendTransform5Dim in_tran5D_dim, Ascend5Dim we_5D_dim, AscendTransform5Dim we_tran5D_dim);
+
+
 #endif  // INC_CONV_LAYERS_H_

@@ -1002,7 +1002,259 @@ void TestAscendConvLayer() {
 
 
 
+/*
+    昇腾卷积加速算法    NHWC输入 NHWC输出
+*/
+void TestAscendConvLayerNHWC() {
 
+    bool print_outputs = false;
+    bool print_inputs = false;
+    bool print_weight = false;
+    bool bias_en = false;
+    bool print_info = true;
+
+
+    // ******************************************** 卷积基本信息 ***********************************************
+    int ker_size = 3;
+    int group = 1;  // 仅支持 1
+    int stride = 1; // 仅支持 1
+    int N = 4;
+    int C = 35;
+    int H = 36;
+    int W = 20;
+    int M = 47;
+
+    int pad = 1;
+    int CUBE_row = 16;  // CUBE_row 和 CUBE_col 需要相等  否则可能会报错，因为大概有混用的情况。
+    int CUBE_col = 16;
+
+    // 原始维度
+    TensorDim in_dim = {N, C, H, W};
+    TensorDim weight_dim = {M, C, ker_size, ker_size};
+    TensorDim out_dim;
+    out_dim.w = (in_dim.w + (pad + pad) - weight_dim.w) / stride + 1;
+    out_dim.h = (in_dim.h + (pad + pad) - weight_dim.h) / stride + 1;
+    out_dim.c = M;
+    out_dim.n = in_dim.n;
+
+    // 变换维度
+    int c1;
+    if(C % CUBE_row == 0){
+        c1 = C / CUBE_row;
+    }else{
+        c1 = C / CUBE_row + 1;
+    }
+    int move;
+    if((out_dim.h*out_dim.w) % CUBE_col ==0){
+        move = (out_dim.h*out_dim.w) / CUBE_col;
+    }else{
+        move = (out_dim.h*out_dim.w) / CUBE_col + 1;
+    }
+    int kernal_cube;
+    if(M % CUBE_col == 0){
+        kernal_cube = M / CUBE_col;
+    }else{
+        kernal_cube = M / CUBE_col + 1;
+    }
+    Ascend5Dim in_5D_dim = {N, c1, H, W, CUBE_row};
+    AscendTransform5Dim in_tran5D_dim = {N, move, c1, ker_size*ker_size, CUBE_row*CUBE_col};
+    Ascend5Dim we_5D_dim = {c1, ker_size, ker_size, CUBE_row, M};
+    AscendTransform5Dim we_tran5D_dim = {c1, ker_size, ker_size, kernal_cube, CUBE_row*CUBE_col};
+
+
+    // ******************************************** 开辟所需空间 ***********************************************
+    float *in_data = malloc(TensorSize(in_dim) * sizeof(float));
+    float *filters = malloc(TensorSize(weight_dim) * sizeof(float));
+    float *bias = malloc(out_dim.c * sizeof(float));
+    float *output = malloc(TensorSize(out_dim) * sizeof(float));
+    float *std_out = (float*)malloc(TensorSize(out_dim) * sizeof(float));
+    RandInitF32(in_data, TensorSize(in_dim));
+    RandInitF32(filters, TensorSize(weight_dim));
+    if (bias_en) {
+        RandInitF32(bias, out_dim.n * out_dim.c);
+    }
+
+    // ******************************************** CPU计算校验数据 ***********************************************
+    // RefConv2dF32(in_data, filters,     //CPU算法  校准数据
+    //     bias, in_dim.n, in_dim.c, in_dim.h,
+    //     in_dim.w, out_dim.c, out_dim.h, out_dim.w,
+    //     ker_size, group,
+    //     pad, stride, bias_en, std_out);
+
+    RefConv2dF32_nhwc(in_data, filters,     //CPU算法  校准数据
+        bias, in_dim.n, in_dim.c, in_dim.h,
+        in_dim.w, out_dim.c, out_dim.h, out_dim.w,
+        ker_size, group,
+        pad, stride, bias_en, std_out);
+    
+    // ******************************************** 打印基本信息 ***********************************************
+    if(print_info){
+        printf(" # **************     Alogrithm Ascend  Method   **************** #\n");
+        printf(" # ****************          basic info         **************** #\n");
+        printf(" # input tensor  NHWC: [%d, %d, %d, %d] \n", N, H, W, C);
+        printf(" # weight tensor  CCHW: [%d, %d, %d, %d] \n", M, C, ker_size, ker_size);
+        printf(" # output tensor  NHWC: [%d, %d, %d, %d] \n", out_dim.n, out_dim.h, out_dim.w,out_dim.c);
+        printf(" # bias tensor: [%d] \n", out_dim.c);
+        printf(" # group: %d    stride: %d    pad:%d   CUBE_row:%d   CUBE_col:%d  \n", group, stride, pad, CUBE_row, CUBE_col);
+        printf(" # **************** temp mem will malloc inside Alogrithm **************** #\n");
+        printf(" # Ascend input  5D : [%d, %d, %d, %d, %d] \n",  in_5D_dim.n, in_5D_dim.c1, in_5D_dim.h, in_5D_dim.w, in_5D_dim.c0);
+        printf(" # Ascend input transformed 5D : [%d, %d, %d, %d, %d] \n",  in_tran5D_dim.batch, in_tran5D_dim.move, in_tran5D_dim.channel, in_tran5D_dim.LW, in_tran5D_dim.cube);
+        printf(" # Ascend output 5D : [%d, %d, %d, %d, %d] \n",  in_tran5D_dim.batch, in_tran5D_dim.move, we_tran5D_dim.LW, CUBE_row, CUBE_col);
+        printf(" # **************** offline provide weight **************** #\n");
+        printf(" # Ascend weight  5D : [%d, %d, %d, %d, %d] \n",  we_5D_dim.n, we_5D_dim.c1, we_5D_dim.h, we_5D_dim.w, we_5D_dim.c0);
+        printf(" # Ascend weight transformed 5D : [%d, %d, %d, %d, %d] \n",  we_tran5D_dim.batch, we_tran5D_dim.move, we_tran5D_dim.channel, we_tran5D_dim.LW, we_tran5D_dim.cube);
+        printf(" # ClaCube: [%d, %d]  fixed \n",  CUBE_row, CUBE_col);
+    }
+    if(group > 1){
+        printf(" # ERROR: the group more than one has not been supported! \n");
+        return;
+    }
+    if(stride > 1){
+        printf(" # ERROR: this alogrithm isn't suitable for stride more than one! \n");
+        return;
+    }
+
+
+    // // ************************************** Ascend *************************************
+    Ascend_A(in_data, in_dim, filters, weight_dim, bias, output, out_dim, group, pad, stride, CUBE_row, CUBE_col,
+            in_5D_dim, in_tran5D_dim, we_5D_dim, we_tran5D_dim);
+
+    // ********************************************   校验     ***********************************************
+    if (TensorCompare(output, std_out, out_dim)) {
+        printf("PASS\n");
+    } else {
+        printf("FAIL\n");
+    }
+
+    free(in_data);
+    free(bias);
+    free(std_out);
+    free(filters);
+    free(output);
+}
+
+
+void TestAscendConvLayerNCHW() {
+
+    bool print_outputs = false;
+    bool print_inputs = false;
+    bool print_weight = false;
+    bool bias_en = false;
+    bool print_info = true;
+
+
+    // ******************************************** 卷积基本信息 ***********************************************
+    int ker_size = 4;
+    int group = 1;  // 仅支持 1
+    int stride = 1; // 仅支持 1
+    int N = 2;
+    int C = 35;
+    int H = 29;
+    int W = 47;
+    int M = 37;
+
+    int pad = 3;
+    int CUBE_row = 16;  // CUBE_row 和 CUBE_col 需要相等  否则可能会报错，因为大概有混用的情况。
+    int CUBE_col = 16;
+
+    // 原始维度
+    TensorDim in_dim = {N, C, H, W};
+    TensorDim weight_dim = {M, C, ker_size, ker_size};
+    TensorDim out_dim;
+    out_dim.w = (in_dim.w + (pad + pad) - weight_dim.w) / stride + 1;
+    out_dim.h = (in_dim.h + (pad + pad) - weight_dim.h) / stride + 1;
+    out_dim.c = M;
+    out_dim.n = in_dim.n;
+
+    // 变换维度
+    int c1;
+    if(C % CUBE_row == 0){
+        c1 = C / CUBE_row;
+    }else{
+        c1 = C / CUBE_row + 1;
+    }
+    int move;
+    if((out_dim.h*out_dim.w) % CUBE_col ==0){
+        move = (out_dim.h*out_dim.w) / CUBE_col;
+    }else{
+        move = (out_dim.h*out_dim.w) / CUBE_col + 1;
+    }
+    int kernal_cube;
+    if(M % CUBE_col == 0){
+        kernal_cube = M / CUBE_col;
+    }else{
+        kernal_cube = M / CUBE_col + 1;
+    }
+    Ascend5Dim in_5D_dim = {N, c1, H, W, CUBE_row};
+    Cube5DDim in_tran5D_dim = {N, c1, ker_size*ker_size, move, CUBE_row*CUBE_col};
+    Ascend5Dim we_5D_dim = {kernal_cube, CUBE_row, c1, ker_size*ker_size, CUBE_col};
+    WeightCube5D we_tran5D_dim = {kernal_cube, c1, ker_size, ker_size, CUBE_row*CUBE_col};
+
+
+    // ******************************************** 开辟所需空间 ***********************************************
+    float *in_data = malloc(TensorSize(in_dim) * sizeof(float));
+    float *filters = malloc(TensorSize(weight_dim) * sizeof(float));
+    float *bias = malloc(out_dim.c * sizeof(float));
+    float *output = malloc(TensorSize(out_dim) * sizeof(float));
+    float *std_out = (float*)malloc(TensorSize(out_dim) * sizeof(float));
+    RandInitF32(in_data, TensorSize(in_dim));
+    RandInitF32(filters, TensorSize(weight_dim));
+    if (bias_en) {
+        RandInitF32(bias, out_dim.n * out_dim.c);
+    }
+
+    // ******************************************** CPU计算校验数据 ***********************************************
+    RefConv2dF32(in_data, filters,     //CPU算法  校准数据
+        bias, in_dim.n, in_dim.c, in_dim.h,
+        in_dim.w, out_dim.c, out_dim.h, out_dim.w,
+        ker_size, group,
+        pad, stride, bias_en, std_out);
+    
+    // ******************************************** 打印基本信息 ***********************************************
+    if(print_info){
+        printf(" # **************     Alogrithm Ascend  Method   **************** #\n");
+        printf(" # ****************          basic info         **************** #\n");
+        printf(" # input tensor  NCHW: [%d, %d, %d, %d] \n", N, C, H, W);
+        printf(" # weight tensor  CCHW: [%d, %d, %d, %d] \n", M, C, ker_size, ker_size);
+        printf(" # output tensor  NCHW: [%d, %d, %d, %d] \n", out_dim.n,out_dim.c, out_dim.h, out_dim.w);
+        printf(" # bias tensor: [%d] \n", out_dim.c);
+        printf(" # group: %d    stride: %d    pad:%d   CUBE_row:%d   CUBE_col:%d  \n", group, stride, pad, CUBE_row, CUBE_col);
+        printf(" # **************** temp mem will malloc inside Alogrithm **************** #\n");
+        printf(" # Ascend input  5D : [%d, %d, %d, %d, %d] \n",  in_5D_dim.n, in_5D_dim.c1, in_5D_dim.h, in_5D_dim.w, in_5D_dim.c0);
+        printf(" # Ascend input transformed 5D : [%d, %d, %d, %d, %d] \n",  in_tran5D_dim.batch, in_tran5D_dim.ch_cube, in_tran5D_dim.LW, in_tran5D_dim.move_cube, in_tran5D_dim.cube);
+        printf(" # **************** offline provide weight **************** #\n");
+        printf(" # Ascend weight  5D : [%d, %d, %d, %d, %d] \n",  we_5D_dim.n, we_5D_dim.c1, we_5D_dim.h, we_5D_dim.w, we_5D_dim.c0);
+        printf(" # Ascend weight transformed 5D : [%d, %d, %d, %d, %d] \n",  we_tran5D_dim.num_cube, we_tran5D_dim.ch_cube, we_tran5D_dim.KH, we_tran5D_dim.KW, we_tran5D_dim.cube);
+        printf(" # ClaCube: [%d, %d]  fixed \n",  CUBE_row, CUBE_col);
+    }
+    if(group > 1){
+        printf(" # ERROR: the group more than one has not been supported! \n");
+        return;
+    }
+    if(stride > 1){
+        printf(" # ERROR: this alogrithm isn't suitable for stride more than one! \n");
+        return;
+    }
+
+
+    // // ************************************** Ascend *************************************
+    Ascend_B(in_data, in_dim, filters, weight_dim, bias, output, out_dim, group, pad, stride, CUBE_row, CUBE_col,
+            in_5D_dim, in_tran5D_dim, we_5D_dim, we_tran5D_dim);
+
+    // ********************************************   校验     ***********************************************
+    if (TensorCompare(output, std_out, out_dim)) {
+        printf("PASS\n");
+    } else {
+        printf("FAIL\n");
+    }
+
+    
+    free(in_data);
+    free(bias);
+    free(std_out);
+    free(filters);
+    free(output);
+}
 
 int main(void) {
 
@@ -1033,5 +1285,11 @@ int main(void) {
 
     //9.  测试 昇腾 卷积算法加速
     // TestAscendConvLayer();
+
+    //10.  测试 昇腾 卷积算法加速
+    // TestAscendConvLayerNCHW();
+
+    //11. 测试 昇腾卷积算法加速 NHWC
+    // TestAscendConvLayerNHWC();
     return 0;
 }

@@ -39,4 +39,21 @@ typedef struct{
 }AscendTransform5Dim;
 
 
+
+typedef struct{
+    int batch;
+    int ch_cube;
+    int LW;
+    int move_cube;
+    int cube;
+}Cube5DDim;
+
+typedef struct{
+    int num_cube;
+    int ch_cube;
+    int KH;
+    int KW;
+    int cube;
+}WeightCube5D;
+
 #endif  // INC_COMMON_TYPES_H_
