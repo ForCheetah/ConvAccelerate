@@ -47,8 +47,14 @@
     //8.  测试 NHWC 排布 CPU卷积算法的正确性
     // TestCPU_NHWC_conv();
 
-    //9.  测试 昇腾 卷积算法加速
+    //9.  测试 昇腾 卷积算法加速     NCHW 输入， NHWC输出
     // TestAscendConvLayer();
+
+    //10.  测试 昇腾 卷积算法加速      NCHW 输入， NCHW输出
+    // TestAscendConvLayerNCHW();
+
+    //11. 测试 昇腾卷积算法加速 NHWC      NHWC 输入， NHWC输出
+    // TestAscendConvLayerNHWC();
 ```
 
 2. 修改 CMakeLists.txt文件中 openBlas 库的路径

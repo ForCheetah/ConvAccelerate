@@ -1265,7 +1265,7 @@ int main(void) {
     //2. 测试 input_tensor_col matmul weight_col
     // TestIm2ColConvIMW();
 
-    //3.  测试 weight_cube matmul input_cube  逐个取数
+    //3.  测试 weight_cube matmul input_cube  逐个取数  NCHW
     // TestIm2CubeConvLayer();
 
     //4.  测试 image -> col_2D -> cube with multi-mem-copy  批量取数
